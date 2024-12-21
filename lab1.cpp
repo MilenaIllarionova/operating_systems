@@ -7,11 +7,10 @@
 using namespace std;
 
 // Глобальные переменные
-mutex mtx;                  
-condition_variable cv;      
-bool ready = false;         
-int count = 0;              
-const int max_count = 10;   
+mutex mtx;                  // Мьютекс для синхронизации доступа
+condition_variable cv;      // Условная переменная для ожидания события
+int count = 0;              // Счётчик итераций
+const int max_count = 10;   // Максимальное количество итераций
 
 // Функция потока-поставщика
 void provider()
@@ -20,18 +19,14 @@ void provider()
     {
         {
             unique_lock<mutex> lock(mtx);
-            if (count >= max_count) 
+            if (count >= max_count) // Прекращаем выполнение при достижении лимита
                 break;
 
-            if (ready) 
-                continue;
-
-            ready = true;        
-            count++;             
+            count++;             // Увеличиваем счётчик
             cout << "Event " << count << " provided" << endl;
         }
-        cv.notify_one();          
-        this_thread::sleep_for(chrono::seconds(1)); 
+        cv.notify_one();          // Уведомляем поток-потребителя
+        this_thread::sleep_for(chrono::seconds(1)); // Задержка
     }
 }
 
@@ -41,18 +36,13 @@ void consumer()
     while (true)
     {
         unique_lock<mutex> lock(mtx);
-        if (count >= max_count && !ready) 
-            break;
+        cv.wait(lock, [] { return count > 0; }); // Ждём, пока появится новое событие
 
-        if (!ready) 
-        {
-            cv.wait(lock);
-            continue;
-        }
+        if (count > max_count) // Проверяем условие завершения
+            break;
 
         // Обрабатываем событие
         cout << "Event " << count << " consumed" << endl;
-        ready = false; 
     }
 }
 
